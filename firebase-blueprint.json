@@ -1,0 +1,1019 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Private user account record storing owner identity, subscription plan, and moderation status.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the account owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address of the user.",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Account holder display name.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "plan": {
+          "type": "string",
+          "description": "Active subscription tier controlled by system/admin.",
+          "enum": ["free", "premium"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Account standing controlled by administrators.",
+          "enum": ["active", "suspended"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of account creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last account update."
+        }
+      },
+      "required": ["uid", "email", "displayName", "plan", "status", "createdAt", "updatedAt"]
+    },
+    "Admin": {
+      "title": "Admin",
+      "description": "Trusted administrator registry entry granting platform moderation and management rights.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "UID of the administrator.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email address of the administrator.",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "grantedBy": {
+          "type": "string",
+          "description": "UID of the administrator who granted privileges.",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when admin access was granted."
+        }
+      },
+      "required": ["uid", "email", "grantedBy", "createdAt"]
+    },
+    "Username": {
+      "title": "Username",
+      "description": "Transactional public slug reservation mapping a unique lowercase username to a user UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner UID associated with this public username.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "username": {
+          "type": "string",
+          "description": "Unique lowercase public slug.",
+          "minLength": 3,
+          "maxLength": 30,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "isPublished": {
+          "type": "boolean",
+          "description": "Whether the associated bio page is publicly published."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when slug was claimed."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when slug record was updated."
+        }
+      },
+      "required": ["uid", "username", "isPublished", "createdAt", "updatedAt"]
+    },
+    "Profile": {
+      "title": "Profile",
+      "description": "Public bio page configuration, theme customization, and metadata.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner UID matching document ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "username": {
+          "type": "string",
+          "description": "Unique public slug reserved in /usernames.",
+          "minLength": 3,
+          "maxLength": 30,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display title on the bio page.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "bio": {
+          "type": "string",
+          "description": "Short biography displayed under display name.",
+          "minLength": 0,
+          "maxLength": 280
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Data URI or HTTPS URL of profile avatar.",
+          "minLength": 0,
+          "maxLength": 150000
+        },
+        "backgroundImageUrl": {
+          "type": "string",
+          "description": "Data URI or HTTPS URL of optional page background image.",
+          "minLength": 0,
+          "maxLength": 200000
+        },
+        "themeId": {
+          "type": "string",
+          "description": "Selected built-in theme identifier.",
+          "enum": [
+            "minimal-white",
+            "dark-pro",
+            "gradient-dream",
+            "creator-neon",
+            "business-pro",
+            "pink-aesthetic",
+            "nature-green",
+            "glassmorphism"
+          ]
+        },
+        "customBgColor": {
+          "type": "string",
+          "description": "Optional custom hex background color override.",
+          "minLength": 0,
+          "maxLength": 32
+        },
+        "customBgGradient": {
+          "type": "string",
+          "description": "Optional safe predefined CSS gradient key or value.",
+          "minLength": 0,
+          "maxLength": 160
+        },
+        "customButtonColor": {
+          "type": "string",
+          "description": "Optional custom hex button color override.",
+          "minLength": 0,
+          "maxLength": 32
+        },
+        "customTextColor": {
+          "type": "string",
+          "description": "Optional custom hex text color override.",
+          "minLength": 0,
+          "maxLength": 32
+        },
+        "buttonShape": {
+          "type": "string",
+          "description": "Corner geometry for link buttons.",
+          "enum": ["sharp", "rounded", "pill"]
+        },
+        "buttonStyle": {
+          "type": "string",
+          "description": "Surface rendering style for link buttons.",
+          "enum": ["solid", "outline", "soft", "shadow", "glass"]
+        },
+        "fontFamily": {
+          "type": "string",
+          "description": "Safe predefined font token.",
+          "enum": ["jakarta", "serif", "mono", "editorial", "modern"]
+        },
+        "avatarShape": {
+          "type": "string",
+          "description": "Shape of profile photo container.",
+          "enum": ["circle", "rounded", "square"]
+        },
+        "layoutWidth": {
+          "type": "string",
+          "description": "Container max-width preset.",
+          "enum": ["compact", "standard", "wide"]
+        },
+        "ctaLabel": {
+          "type": "string",
+          "description": "Optional featured primary CTA button label.",
+          "minLength": 0,
+          "maxLength": 60
+        },
+        "ctaUrl": {
+          "type": "string",
+          "description": "Optional featured primary CTA destination URL.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "seoTitle": {
+          "type": "string",
+          "description": "Custom SEO title (Premium plan feature).",
+          "minLength": 0,
+          "maxLength": 70
+        },
+        "seoDescription": {
+          "type": "string",
+          "description": "Custom SEO meta description (Premium plan feature).",
+          "minLength": 0,
+          "maxLength": 160
+        },
+        "isPublished": {
+          "type": "boolean",
+          "description": "Whether the bio page is live to the public."
+        },
+        "accountStatus": {
+          "type": "string",
+          "description": "Moderation status mirrored for public gatekeeping.",
+          "enum": ["active", "suspended"]
+        },
+        "linkCount": {
+          "type": "integer",
+          "description": "Atomically synchronized count of links in subcollection."
+        },
+        "lastModifiedLinkId": {
+          "type": "string",
+          "description": "Link ID verified during atomic add/delete batch operations.",
+          "minLength": 0,
+          "maxLength": 128
+        },
+        "totalViews": {
+          "type": "integer",
+          "description": "Cumulative public profile views."
+        },
+        "totalClicks": {
+          "type": "integer",
+          "description": "Cumulative public link clicks."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of profile creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last profile update."
+        }
+      },
+      "required": [
+        "uid",
+        "username",
+        "displayName",
+        "bio",
+        "avatarUrl",
+        "backgroundImageUrl",
+        "themeId",
+        "customBgColor",
+        "customBgGradient",
+        "customButtonColor",
+        "customTextColor",
+        "buttonShape",
+        "buttonStyle",
+        "fontFamily",
+        "avatarShape",
+        "layoutWidth",
+        "ctaLabel",
+        "ctaUrl",
+        "seoTitle",
+        "seoDescription",
+        "isPublished",
+        "accountStatus",
+        "linkCount",
+        "lastModifiedLinkId",
+        "totalViews",
+        "totalClicks",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BioLink": {
+      "title": "BioLink",
+      "description": "Individual destination link belonging to a user's bio page.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Link document identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "description": "Owner UID matching parent profile.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Button label displayed to visitors.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "url": {
+          "type": "string",
+          "description": "Validated destination URL (https, http, mailto, tel).",
+          "minLength": 4,
+          "maxLength": 1000,
+          "pattern": "^(https?://|mailto:|tel:).+"
+        },
+        "platform": {
+          "type": "string",
+          "description": "Platform icon category.",
+          "enum": [
+            "website",
+            "portfolio",
+            "whatsapp",
+            "youtube",
+            "instagram",
+            "tiktok",
+            "facebook",
+            "linkedin",
+            "x",
+            "github",
+            "shop",
+            "email",
+            "phone",
+            "custom"
+          ]
+        },
+        "isSocialIcon": {
+          "type": "boolean",
+          "description": "Whether to also pin in the compact social icon row."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the link is visible on the public page."
+        },
+        "isProfilePublished": {
+          "type": "boolean",
+          "description": "Denormalized publish flag enabling zero-get list rules."
+        },
+        "order": {
+          "type": "integer",
+          "description": "Sort position on the bio page."
+        },
+        "clicks": {
+          "type": "integer",
+          "description": "Cumulative click count for this link."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of link creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last link update."
+        }
+      },
+      "required": [
+        "id",
+        "uid",
+        "title",
+        "url",
+        "platform",
+        "isSocialIcon",
+        "enabled",
+        "isProfilePublished",
+        "order",
+        "clicks",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LinkEvent": {
+      "title": "LinkEvent",
+      "description": "Privacy-conscious analytics event recording a profile view or link click.",
+      "type": "object",
+      "properties": {
+        "profileUid": {
+          "type": "string",
+          "description": "Target profile owner UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "eventType": {
+          "type": "string",
+          "description": "Type of visitor interaction.",
+          "enum": ["view", "click"]
+        },
+        "linkId": {
+          "type": "string",
+          "description": "Clicked link ID or empty string for profile view.",
+          "minLength": 0,
+          "maxLength": 128
+        },
+        "linkTitle": {
+          "type": "string",
+          "description": "Clicked link title snapshot.",
+          "minLength": 0,
+          "maxLength": 100
+        },
+        "deviceType": {
+          "type": "string",
+          "description": "Coarse viewport category without fingerprinting.",
+          "enum": ["mobile", "tablet", "desktop"]
+        },
+        "referrerHost": {
+          "type": "string",
+          "description": "Referrer domain hostname only.",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "dateKey": {
+          "type": "string",
+          "description": "UTC date bucket YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the event."
+        }
+      },
+      "required": [
+        "profileUid",
+        "eventType",
+        "linkId",
+        "linkTitle",
+        "deviceType",
+        "referrerHost",
+        "dateKey",
+        "createdAt"
+      ]
+    },
+    "AnalyticsDaily": {
+      "title": "AnalyticsDaily",
+      "description": "Aggregated daily view and click counters per profile.",
+      "type": "object",
+      "properties": {
+        "profileUid": {
+          "type": "string",
+          "description": "Owner UID of the tracked profile.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dateKey": {
+          "type": "string",
+          "description": "UTC date string YYYY-MM-DD.",
+          "minLength": 10,
+          "maxLength": 10,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "views": {
+          "type": "integer",
+          "description": "Total profile views on this date."
+        },
+        "clicks": {
+          "type": "integer",
+          "description": "Total link clicks on this date."
+        },
+        "lastEventId": {
+          "type": "string",
+          "description": "LinkEvent ID created in the same atomic batch.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last counter increment."
+        }
+      },
+      "required": ["profileUid", "dateKey", "views", "clicks", "lastEventId", "updatedAt"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Subscription billing and tier record isolated per user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "plan": {
+          "type": "string",
+          "description": "Current plan level.",
+          "enum": ["free", "premium"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Billing status.",
+          "enum": ["active", "canceled", "pending_verification"]
+        },
+        "provider": {
+          "type": "string",
+          "description": "Provisioning source.",
+          "enum": ["system", "manual_admin"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of update."
+        }
+      },
+      "required": ["uid", "plan", "status", "provider", "createdAt", "updatedAt"]
+    },
+    "SupportTicket": {
+      "title": "SupportTicket",
+      "description": "User help and support request ticket.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "UID of submitting user.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Contact email of user.",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "category": {
+          "type": "string",
+          "description": "Support topic category.",
+          "enum": ["account", "billing", "technical", "abuse", "feature"]
+        },
+        "subject": {
+          "type": "string",
+          "description": "Short ticket summary.",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "message": {
+          "type": "string",
+          "description": "Detailed support inquiry.",
+          "minLength": 10,
+          "maxLength": 2000
+        },
+        "status": {
+          "type": "string",
+          "description": "Ticket resolution status.",
+          "enum": ["open", "in_progress", "resolved"]
+        },
+        "adminReply": {
+          "type": "string",
+          "description": "Response written by an administrator.",
+          "minLength": 0,
+          "maxLength": 2000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of submission."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "category",
+        "subject",
+        "message",
+        "status",
+        "adminReply",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Moderation report submitted against a public bio page.",
+      "type": "object",
+      "properties": {
+        "reportedUid": {
+          "type": "string",
+          "description": "UID of the reported profile.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "reportedUsername": {
+          "type": "string",
+          "description": "Slug of the reported profile.",
+          "minLength": 3,
+          "maxLength": 30,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Abuse category.",
+          "enum": ["spam", "impersonation", "phishing", "inappropriate", "other"]
+        },
+        "details": {
+          "type": "string",
+          "description": "Additional explanation from reporter.",
+          "minLength": 5,
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "description": "Moderation review outcome.",
+          "enum": ["pending", "reviewed", "dismissed", "actioned"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of report submission."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of moderation review."
+        }
+      },
+      "required": [
+        "reportedUid",
+        "reportedUsername",
+        "reason",
+        "details",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PlatformSettings": {
+      "title": "PlatformSettings",
+      "description": "Global landing page copy, plan limits, and enabled theme configuration managed by admins.",
+      "type": "object",
+      "properties": {
+        "heroHeadline": {
+          "type": "string",
+          "description": "Primary hero headline on the public homepage.",
+          "minLength": 5,
+          "maxLength": 120
+        },
+        "heroSubheadline": {
+          "type": "string",
+          "description": "Supporting hero subtitle on the public homepage.",
+          "minLength": 10,
+          "maxLength": 300
+        },
+        "freeMaxLinks": {
+          "type": "integer",
+          "description": "Displayed link cap for the Free tier."
+        },
+        "premiumMaxLinks": {
+          "type": "integer",
+          "description": "Displayed link cap for the Premium tier."
+        },
+        "premiumPriceMonthly": {
+          "type": "integer",
+          "description": "Monthly Premium price in USD."
+        },
+        "disabledThemes": {
+          "type": "array",
+          "description": "List of built-in theme IDs disabled by admin.",
+          "maxLength": 8
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last configuration update."
+        }
+      },
+      "required": [
+        "heroHeadline",
+        "heroSubheadline",
+        "freeMaxLinks",
+        "premiumMaxLinks",
+        "premiumPriceMonthly",
+        "disabledThemes",
+        "updatedAt"
+      ]
+    },
+    "FaqItem": {
+      "title": "FaqItem",
+      "description": "Frequently asked question displayed on the public homepage and edited by admins.",
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string",
+          "description": "FAQ question heading.",
+          "minLength": 5,
+          "maxLength": 200
+        },
+        "answer": {
+          "type": "string",
+          "description": "Plain-text FAQ answer.",
+          "minLength": 10,
+          "maxLength": 1500
+        },
+        "order": {
+          "type": "integer",
+          "description": "Display sort order."
+        },
+        "isPublished": {
+          "type": "boolean",
+          "description": "Whether this FAQ item is publicly visible."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of update."
+        }
+      },
+      "required": ["question", "answer", "order", "isPublished", "updatedAt"]
+    },
+    "PaymentMethod": {
+      "title": "PaymentMethod",
+      "description": "Custom manual payment method configured by administrators (e.g., EasyPaisa, JazzCash, Bank Transfer, Crypto).",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Payment method document identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "providerName": {
+          "type": "string",
+          "description": "Payment service or bank name (e.g. EasyPaisa, JazzCash, Meezan Bank).",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "accountTitle": {
+          "type": "string",
+          "description": "Account holder title shown to users.",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "accountNumber": {
+          "type": "string",
+          "description": "Account number, mobile wallet number, IBAN, or address.",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Optional payment instructions displayed to upgrading users.",
+          "minLength": 0,
+          "maxLength": 600
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether this payment method is visible for new payment requests."
+        },
+        "order": {
+          "type": "integer",
+          "description": "Display sort order."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of creation."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last update."
+        }
+      },
+      "required": [
+        "id",
+        "providerName",
+        "accountTitle",
+        "accountNumber",
+        "instructions",
+        "isActive",
+        "order",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PaymentRequest": {
+      "title": "PaymentRequest",
+      "description": "Manual payment verification submission created by a user and reviewed by administrators.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Payment request document identifier.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "uid": {
+          "type": "string",
+          "description": "UID of the user requesting Premium upgrade.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified email address of the submitting user.",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "username": {
+          "type": "string",
+          "description": "Public slug of the submitting user.",
+          "minLength": 3,
+          "maxLength": 30,
+          "pattern": "^[a-z0-9_\\-]+$"
+        },
+        "methodId": {
+          "type": "string",
+          "description": "Referenced PaymentMethod ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "methodName": {
+          "type": "string",
+          "description": "Snapshot of payment method provider name at submission time.",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "amountUsd": {
+          "type": "integer",
+          "description": "Plan price in USD associated with this request."
+        },
+        "senderName": {
+          "type": "string",
+          "description": "Account holder name from which user sent the payment.",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "senderAccount": {
+          "type": "string",
+          "description": "Phone number, bank account, or wallet from which payment was sent.",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "Transaction ID (Trx ID) or bank reference number.",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "receiptDataUrl": {
+          "type": "string",
+          "description": "Optional compressed payment receipt screenshot data URI.",
+          "minLength": 0,
+          "maxLength": 160000
+        },
+        "userNote": {
+          "type": "string",
+          "description": "Optional note from user.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "description": "Manual verification status controlled by administrators.",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "adminNote": {
+          "type": "string",
+          "description": "Optional verification note or rejection reason from admin.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of submission."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of admin review."
+        }
+      },
+      "required": [
+        "id",
+        "uid",
+        "userEmail",
+        "username",
+        "methodId",
+        "methodName",
+        "amountUsd",
+        "senderName",
+        "senderAccount",
+        "transactionId",
+        "receiptDataUrl",
+        "userNote",
+        "status",
+        "adminNote",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Private user account records isolated strictly to owner and admins."
+    },
+    "/admins/{adminUid}": {
+      "schema": "Admin",
+      "description": "Trusted administrator directory controlled exclusively by existing admins."
+    },
+    "/usernames/{username}": {
+      "schema": "Username",
+      "description": "Unique public username reservation index atomically synced with /profiles/{userId}."
+    },
+    "/profiles/{userId}": {
+      "schema": "Profile",
+      "description": "Public bio page configurations readable publicly only when published and active."
+    },
+    "/profiles/{userId}/links/{linkId}": {
+      "schema": "BioLink",
+      "description": "Ordered links belonging to a bio page, enforcing plan-based link caps."
+    },
+    "/linkEvents/{eventId}": {
+      "schema": "LinkEvent",
+      "description": "Immutable privacy-safe view and click analytics events."
+    },
+    "/analyticsDaily/{statId}": {
+      "schema": "AnalyticsDaily",
+      "description": "Daily aggregated views and clicks per profile atomically linked to /linkEvents."
+    },
+    "/subscriptions/{userId}": {
+      "schema": "Subscription",
+      "description": "User subscription status isolated per user and modifiable only by admins."
+    },
+    "/supportTickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Support inquiries created by users and answered by admins."
+    },
+    "/reports/{reportId}": {
+      "schema": "Report",
+      "description": "Abuse reports against public profiles reviewed exclusively by admins."
+    },
+    "/platformSettings/{docId}": {
+      "schema": "PlatformSettings",
+      "description": "Global platform configuration and homepage content."
+    },
+    "/faqs/{faqId}": {
+      "schema": "FaqItem",
+      "description": "Public FAQ entries managed by administrators."
+    },
+    "/paymentMethods/{methodId}": {
+      "schema": "PaymentMethod",
+      "description": "Custom manual payment methods configured by admins and readable by verified users when active."
+    },
+    "/paymentRequests/{requestId}": {
+      "schema": "PaymentRequest",
+      "description": "Manual payment verification requests isolated strictly to submitting owner and admins."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Linkora – Your Links, One Beautiful Page",
+  "description": "Create a customizable, mobile-first link-in-bio page for all your social profiles, products, contacts, and portfolios with built-in analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
