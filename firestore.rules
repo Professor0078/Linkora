@@ -1,0 +1,1054 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 0. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Global Primitives
+    // =========================================================================
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isVerified() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUsernameSlug(slug) {
+      return slug is string
+        && slug.size() >= 3
+        && slug.size() <= 30
+        && slug.matches('^[a-z0-9_\\-]+$')
+        && !(slug in ['admin', 'dashboard', 'login', 'signup', 'reset-password', 'privacy', 'terms', 'contact', 'about', 'api', 'settings', 'pricing', 'templates', 'features', 'support']);
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'usman51225@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function userPlanAfter(uid) {
+      return getAfter(/databases/$(database)/documents/users/$(uid)).data.plan;
+    }
+
+    function isBasicTheme(themeId) {
+      return themeId in [
+        'minimal-white',
+        'dark-pro',
+        'gradient-dream',
+        'business-pro',
+        'nature-green',
+        'editorial-ivory',
+        'ocean-breeze',
+        'nordic-frost',
+        'carbon-slate'
+      ];
+    }
+
+    function isAnyValidTheme(themeId) {
+      return themeId in [
+        'minimal-white',
+        'dark-pro',
+        'gradient-dream',
+        'creator-neon',
+        'business-pro',
+        'pink-aesthetic',
+        'nature-green',
+        'glassmorphism',
+        'editorial-ivory',
+        'ocean-breeze',
+        'midnight-gold',
+        'sunset-studio',
+        'nordic-frost',
+        'carbon-slate',
+        'emerald-luxe',
+        'cyber-aurora'
+      ];
+    }
+
+    // =========================================================================
+    // Entity Validation Blueprints (Anti-Update-Gap)
+    // =========================================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'plan', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'plan', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.plan in ['free', 'premium']
+        && data.status in ['active', 'suspended']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdmin(data) {
+      return data.keys().hasAll(['uid', 'email', 'grantedBy', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'grantedBy', 'createdAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && isValidId(data.grantedBy)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidUsernameDoc(data) {
+      return data.keys().hasAll(['uid', 'username', 'isPublished', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'username', 'isPublished', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isValidUsernameSlug(data.username)
+        && data.isPublished is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'username', 'displayName', 'bio', 'avatarUrl', 'backgroundImageUrl',
+          'themeId', 'customBgColor', 'customBgGradient', 'customButtonColor', 'customTextColor',
+          'buttonShape', 'buttonStyle', 'fontFamily', 'avatarShape', 'layoutWidth',
+          'ctaLabel', 'ctaUrl', 'seoTitle', 'seoDescription',
+          'isPublished', 'accountStatus', 'linkCount', 'lastModifiedLinkId',
+          'totalViews', 'totalClicks', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'username', 'displayName', 'bio', 'avatarUrl', 'backgroundImageUrl',
+          'themeId', 'customBgColor', 'customBgGradient', 'customButtonColor', 'customTextColor',
+          'buttonShape', 'buttonStyle', 'fontFamily', 'avatarShape', 'layoutWidth',
+          'ctaLabel', 'ctaUrl', 'seoTitle', 'seoDescription',
+          'headline', 'location', 'announcementText', 'isVerifiedCreator',
+          'vcardEnabled', 'vcardEmail', 'vcardPhone',
+          'leadCaptureEnabled', 'leadCaptureTitle',
+          'visitorThemeSwitchEnabled', 'availabilityStatus', 'availabilityText',
+          'tipJarEnabled', 'tipJarLabel', 'tipJarUrl',
+          'isPublished', 'accountStatus', 'linkCount', 'lastModifiedLinkId',
+          'totalViews', 'totalClicks', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && isValidUsernameSlug(data.username)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && (!('headline' in data) || (data.headline is string && data.headline.size() <= 100))
+        && (!('location' in data) || (data.location is string && data.location.size() <= 60))
+        && (!('announcementText' in data) || (data.announcementText is string && data.announcementText.size() <= 140))
+        && (!('isVerifiedCreator' in data) || data.isVerifiedCreator is bool)
+        && (!('vcardEnabled' in data) || data.vcardEnabled is bool)
+        && (!('vcardEmail' in data) || (data.vcardEmail is string && data.vcardEmail.size() <= 160))
+        && (!('vcardPhone' in data) || (data.vcardPhone is string && data.vcardPhone.size() <= 40))
+        && (!('leadCaptureEnabled' in data) || data.leadCaptureEnabled is bool)
+        && (!('leadCaptureTitle' in data) || (data.leadCaptureTitle is string && data.leadCaptureTitle.size() <= 80))
+        && (!('visitorThemeSwitchEnabled' in data) || data.visitorThemeSwitchEnabled is bool)
+        && (!('availabilityStatus' in data) || data.availabilityStatus in ['none', 'available', 'booking', 'busy'])
+        && (!('availabilityText' in data) || (data.availabilityText is string && data.availabilityText.size() <= 90))
+        && (!('tipJarEnabled' in data) || data.tipJarEnabled is bool)
+        && (!('tipJarLabel' in data) || (data.tipJarLabel is string && data.tipJarLabel.size() <= 60))
+        && (!('tipJarUrl' in data) || (
+          data.tipJarUrl is string
+          && data.tipJarUrl.size() <= 500
+          && (data.tipJarUrl.size() == 0 || data.tipJarUrl.matches('^(https?://|mailto:|tel:).+'))
+        ))
+        && data.bio is string && data.bio.size() <= 280
+        && data.avatarUrl is string && data.avatarUrl.size() <= 150000
+        && (data.avatarUrl.size() == 0 || data.avatarUrl.matches('^(https://|data:image/|/src/assets/|/assets/).+'))
+        && data.backgroundImageUrl is string && data.backgroundImageUrl.size() <= 200000
+        && (data.backgroundImageUrl.size() == 0 || data.backgroundImageUrl.matches('^(https://|data:image/|/src/assets/|/assets/).+'))
+        && isAnyValidTheme(data.themeId)
+        && data.customBgColor is string && data.customBgColor.size() <= 32
+        && data.customBgGradient is string && data.customBgGradient.size() <= 160
+        && data.customButtonColor is string && data.customButtonColor.size() <= 32
+        && data.customTextColor is string && data.customTextColor.size() <= 32
+        && data.buttonShape in ['sharp', 'rounded', 'pill']
+        && data.buttonStyle in ['solid', 'outline', 'soft', 'shadow', 'glass']
+        && data.fontFamily in ['jakarta', 'serif', 'mono', 'editorial', 'modern']
+        && data.avatarShape in ['circle', 'rounded', 'square']
+        && data.layoutWidth in ['compact', 'standard', 'wide']
+        && data.ctaLabel is string && data.ctaLabel.size() <= 60
+        && data.ctaUrl is string && data.ctaUrl.size() <= 500
+        && (data.ctaUrl.size() == 0 || data.ctaUrl.matches('^(https?://|mailto:|tel:).+'))
+        && data.seoTitle is string && data.seoTitle.size() <= 70
+        && data.seoDescription is string && data.seoDescription.size() <= 160
+        && data.isPublished is bool
+        && data.accountStatus in ['active', 'suspended']
+        && data.linkCount is int && data.linkCount >= 0 && data.linkCount <= 50
+        && data.lastModifiedLinkId is string && data.lastModifiedLinkId.size() <= 128
+        && data.totalViews is int && data.totalViews >= 0
+        && data.totalClicks is int && data.totalClicks >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function respectsPlanLimits(uid, data) {
+      let plan = userPlanAfter(uid);
+      return plan == 'premium' || (
+        data.linkCount <= 10
+        && isBasicTheme(data.themeId)
+        && data.seoTitle.size() == 0
+        && data.seoDescription.size() == 0
+      );
+    }
+
+    function isValidBioLink(data) {
+      return data.keys().hasAll([
+          'id', 'uid', 'title', 'url', 'platform', 'isSocialIcon',
+          'enabled', 'isProfilePublished', 'order', 'clicks', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'uid', 'title', 'url', 'platform', 'isSocialIcon',
+          'subtitle', 'badgeText', 'thumbnailUrl', 'priceLabel', 'sectionTitle', 'isFeatured',
+          'embedType', 'startsAt', 'expiresAt', 'isPinned',
+          'enabled', 'isProfilePublished', 'order', 'clicks', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.uid)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 100
+        && (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 140))
+        && (!('badgeText' in data) || (data.badgeText is string && data.badgeText.size() <= 24))
+        && (!('priceLabel' in data) || (data.priceLabel is string && data.priceLabel.size() <= 24))
+        && (!('sectionTitle' in data) || (data.sectionTitle is string && data.sectionTitle.size() <= 60))
+        && (!('thumbnailUrl' in data) || (
+          data.thumbnailUrl is string
+          && data.thumbnailUrl.size() <= 120000
+          && (data.thumbnailUrl.size() == 0 || data.thumbnailUrl.matches('^(https://|data:image/|/src/assets/|/assets/).+'))
+        ))
+        && (!('isFeatured' in data) || data.isFeatured is bool)
+        && (!('embedType' in data) || data.embedType in ['none', 'youtube', 'spotify'])
+        && (!('startsAt' in data) || (data.startsAt is string && data.startsAt.size() <= 32))
+        && (!('expiresAt' in data) || (data.expiresAt is string && data.expiresAt.size() <= 32))
+        && (!('isPinned' in data) || data.isPinned is bool)
+        && data.url is string && data.url.size() >= 4 && data.url.size() <= 1000
+        && data.url.matches('^(https?://|mailto:|tel:).+')
+        && data.platform in [
+          'website', 'portfolio', 'whatsapp', 'youtube', 'instagram', 'tiktok',
+          'facebook', 'linkedin', 'x', 'github', 'shop', 'email', 'phone', 'custom'
+        ]
+        && data.isSocialIcon is bool
+        && data.enabled is bool
+        && data.isProfilePublished is bool
+        && data.order is int && data.order >= 0 && data.order <= 1000
+        && data.clicks is int && data.clicks >= 0
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLead(data) {
+      return data.keys().hasAll([
+          'id', 'profileUid', 'visitorName', 'visitorEmail',
+          'visitorPhone', 'message', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'profileUid', 'visitorName', 'visitorEmail',
+          'visitorPhone', 'message', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.profileUid)
+        && data.visitorName is string && data.visitorName.size() >= 2 && data.visitorName.size() <= 80
+        && data.visitorEmail is string && data.visitorEmail.size() >= 3 && data.visitorEmail.size() <= 254
+        && data.visitorPhone is string && data.visitorPhone.size() <= 40
+        && data.message is string && data.message.size() <= 500
+        && data.status in ['new', 'contacted', 'archived']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLinkEvent(data) {
+      return data.keys().hasAll([
+          'profileUid', 'eventType', 'linkId', 'linkTitle',
+          'deviceType', 'referrerHost', 'dateKey', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'profileUid', 'eventType', 'linkId', 'linkTitle',
+          'deviceType', 'referrerHost', 'dateKey', 'createdAt'
+        ])
+        && isValidId(data.profileUid)
+        && data.eventType in ['view', 'click']
+        && data.linkId is string && data.linkId.size() <= 128
+        && data.linkTitle is string && data.linkTitle.size() <= 100
+        && data.deviceType in ['mobile', 'tablet', 'desktop']
+        && data.referrerHost is string && data.referrerHost.size() <= 120
+        && data.dateKey is string && data.dateKey.size() == 10 && data.dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAnalyticsDaily(data) {
+      return data.keys().hasAll(['profileUid', 'dateKey', 'views', 'clicks', 'lastEventId', 'updatedAt'])
+        && data.keys().hasOnly(['profileUid', 'dateKey', 'views', 'clicks', 'lastEventId', 'updatedAt'])
+        && isValidId(data.profileUid)
+        && data.dateKey is string && data.dateKey.size() == 10 && data.dateKey.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.views is int && data.views >= 0
+        && data.clicks is int && data.clicks >= 0
+        && isValidId(data.lastEventId)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSubscription(data) {
+      return data.keys().hasAll(['uid', 'plan', 'status', 'provider', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'plan', 'status', 'provider', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.plan in ['free', 'premium']
+        && data.status in ['active', 'canceled', 'pending_verification']
+        && data.provider in ['system', 'manual_admin']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSupportTicket(data) {
+      return data.keys().hasAll([
+          'uid', 'email', 'category', 'subject', 'message',
+          'status', 'adminReply', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'category', 'subject', 'message',
+          'status', 'adminReply', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.category in ['account', 'billing', 'technical', 'abuse', 'feature']
+        && data.subject is string && data.subject.size() >= 3 && data.subject.size() <= 120
+        && data.message is string && data.message.size() >= 10 && data.message.size() <= 2000
+        && data.status in ['open', 'in_progress', 'resolved']
+        && data.adminReply is string && data.adminReply.size() <= 2000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll([
+          'reportedUid', 'reportedUsername', 'reason', 'details', 'status', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'reportedUid', 'reportedUsername', 'reason', 'details', 'status', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.reportedUid)
+        && isValidUsernameSlug(data.reportedUsername)
+        && data.reason in ['spam', 'impersonation', 'phishing', 'inappropriate', 'other']
+        && data.details is string && data.details.size() >= 5 && data.details.size() <= 500
+        && data.status in ['pending', 'reviewed', 'dismissed', 'actioned']
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPlatformSettings(data) {
+      return data.keys().hasAll([
+          'heroHeadline', 'heroSubheadline', 'freeMaxLinks', 'premiumMaxLinks',
+          'premiumPriceMonthly', 'disabledThemes', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'heroHeadline', 'heroSubheadline', 'freeMaxLinks', 'premiumMaxLinks',
+          'premiumPriceMonthly', 'disabledThemes', 'updatedAt'
+        ])
+        && data.heroHeadline is string && data.heroHeadline.size() >= 5 && data.heroHeadline.size() <= 120
+        && data.heroSubheadline is string && data.heroSubheadline.size() >= 10 && data.heroSubheadline.size() <= 300
+        && data.freeMaxLinks is int && data.freeMaxLinks >= 1 && data.freeMaxLinks <= 50
+        && data.premiumMaxLinks is int && data.premiumMaxLinks >= 10 && data.premiumMaxLinks <= 100
+        && data.premiumPriceMonthly is int && data.premiumPriceMonthly >= 1 && data.premiumPriceMonthly <= 500
+        && data.disabledThemes is list && data.disabledThemes.size() <= 16
+        && data.disabledThemes.hasOnly([
+          'minimal-white', 'dark-pro', 'gradient-dream', 'creator-neon',
+          'business-pro', 'pink-aesthetic', 'nature-green', 'glassmorphism',
+          'editorial-ivory', 'ocean-breeze', 'midnight-gold', 'sunset-studio',
+          'nordic-frost', 'carbon-slate', 'emerald-luxe', 'cyber-aurora'
+        ])
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidFaqItem(data) {
+      return data.keys().hasAll(['question', 'answer', 'order', 'isPublished', 'updatedAt'])
+        && data.keys().hasOnly(['question', 'answer', 'order', 'isPublished', 'updatedAt'])
+        && data.question is string && data.question.size() >= 5 && data.question.size() <= 200
+        && data.answer is string && data.answer.size() >= 10 && data.answer.size() <= 1500
+        && data.order is int && data.order >= 0 && data.order <= 500
+        && data.isPublished is bool
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPaymentMethod(data) {
+      return data.keys().hasAll([
+          'id', 'providerName', 'accountTitle', 'accountNumber',
+          'instructions', 'isActive', 'order', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'providerName', 'accountTitle', 'accountNumber',
+          'instructions', 'isActive', 'order', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && data.providerName is string && data.providerName.size() >= 2 && data.providerName.size() <= 80
+        && data.accountTitle is string && data.accountTitle.size() >= 2 && data.accountTitle.size() <= 100
+        && data.accountNumber is string && data.accountNumber.size() >= 3 && data.accountNumber.size() <= 120
+        && data.instructions is string && data.instructions.size() <= 600
+        && data.isActive is bool
+        && data.order is int && data.order >= 0 && data.order <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPaymentRequest(data) {
+      return data.keys().hasAll([
+          'id', 'uid', 'userEmail', 'username', 'methodId', 'methodName',
+          'amountUsd', 'senderName', 'senderAccount', 'transactionId',
+          'receiptDataUrl', 'userNote', 'status', 'adminNote', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'uid', 'userEmail', 'username', 'methodId', 'methodName',
+          'amountUsd', 'senderName', 'senderAccount', 'transactionId',
+          'receiptDataUrl', 'userNote', 'status', 'adminNote', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.uid)
+        && data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 254
+        && isValidUsernameSlug(data.username)
+        && isValidId(data.methodId)
+        && data.methodName is string && data.methodName.size() >= 2 && data.methodName.size() <= 80
+        && data.amountUsd is int && data.amountUsd >= 1 && data.amountUsd <= 500
+        && data.senderName is string && data.senderName.size() >= 2 && data.senderName.size() <= 100
+        && data.senderAccount is string && data.senderAccount.size() >= 2 && data.senderAccount.size() <= 120
+        && data.transactionId is string && data.transactionId.size() >= 3 && data.transactionId.size() <= 120
+        && data.receiptDataUrl is string && data.receiptDataUrl.size() <= 160000
+        && (data.receiptDataUrl.size() == 0 || data.receiptDataUrl.matches('^data:image/.+'))
+        && data.userNote is string && data.userNote.size() <= 500
+        && data.status in ['pending', 'approved', 'rejected']
+        && data.adminNote is string && data.adminNote.size() <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // =========================================================================
+    // 1. /users/{userId} - Isolated Private Account Records (PII Protected)
+    // =========================================================================
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUser(incoming())
+        && incoming().uid == userId
+        && incoming().email == request.auth.token.email
+        && incoming().plan == 'free'
+        && incoming().status == 'active'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Owner updates displayName only
+          (
+            isOwner(userId)
+            && existing().status == 'active'
+            && incoming().email == existing().email
+            && incoming().plan == existing().plan
+            && incoming().status == existing().status
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])
+          )
+          ||
+          // Action 2: Admin manages plan or suspension status
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly(['plan', 'status', 'displayName', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 2. /admins/{adminUid} - Trusted Admin Directory
+    // =========================================================================
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isOwner(adminUid) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isAdmin()
+        && isValidId(adminUid)
+        && isValidAdmin(incoming())
+        && incoming().uid == adminUid
+        && incoming().grantedBy == request.auth.uid
+        && incoming().createdAt == request.time;
+
+      allow update: if false;
+      allow delete: if isValidId(adminUid) && isAdmin();
+    }
+
+    // =========================================================================
+    // 3. /usernames/{username} - Transactional Public Slug Index
+    // =========================================================================
+    match /usernames/{username} {
+      allow get: if isValidUsernameSlug(username);
+      allow list: if isAdmin();
+
+      allow create: if isVerified()
+        && isValidUsernameSlug(username)
+        && isValidUsernameDoc(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().username == username
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && getAfter(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.username == username;
+
+      allow update: if isVerified()
+        && isValidUsernameSlug(username)
+        && isValidUsernameDoc(incoming())
+        && incoming().uid == existing().uid
+        && incoming().username == existing().username
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['isPublished', 'updatedAt'])
+        && (
+          (
+            isOwner(existing().uid)
+            && getAfter(/databases/$(database)/documents/profiles/$(existing().uid)).data.isPublished == incoming().isPublished
+          )
+          || isAdmin()
+        );
+
+      allow delete: if isValidUsernameSlug(username)
+        && (
+          (
+            isOwner(existing().uid)
+            && getAfter(/databases/$(database)/documents/profiles/$(existing().uid)).data.username != username
+          )
+          || isAdmin()
+        );
+    }
+
+    // =========================================================================
+    // 4. /profiles/{userId} - Bio Page Configurations
+    // =========================================================================
+    match /profiles/{userId} {
+      allow get: if isValidId(userId) && (
+        (existing().isPublished == true && existing().accountStatus == 'active')
+        || isOwner(userId)
+        || isAdmin()
+      );
+
+      allow list: if isAdmin();
+
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidProfile(incoming())
+        && incoming().uid == userId
+        && incoming().accountStatus == 'active'
+        && (!('isVerifiedCreator' in incoming()) || incoming().isVerifiedCreator == false)
+        && incoming().linkCount == 0
+        && incoming().lastModifiedLinkId == ''
+        && incoming().totalViews == 0
+        && incoming().totalClicks == 0
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/users/$(userId))
+        && respectsPlanLimits(userId, incoming())
+        && getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.uid == userId;
+
+      allow update: if isValidId(userId)
+        && isValidProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && (
+          // Action 1: Owner edits profile appearance, content, vCard, lead capture, Linkora 3.0 widgets, username, or publish state
+          (
+            isOwner(userId)
+            && existing().accountStatus == 'active'
+            && incoming().accountStatus == 'active'
+            && incoming().linkCount == existing().linkCount
+            && incoming().totalViews == existing().totalViews
+            && incoming().totalClicks == existing().totalClicks
+            && incoming().updatedAt == request.time
+            && respectsPlanLimits(userId, incoming())
+            && getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.uid == userId
+            && getAfter(/databases/$(database)/documents/usernames/$(incoming().username)).data.isPublished == incoming().isPublished
+            && (
+              incoming().username == existing().username
+              || !existsAfter(/databases/$(database)/documents/usernames/$(existing().username))
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'username', 'displayName', 'bio', 'avatarUrl', 'backgroundImageUrl',
+              'themeId', 'customBgColor', 'customBgGradient', 'customButtonColor', 'customTextColor',
+              'buttonShape', 'buttonStyle', 'fontFamily', 'avatarShape', 'layoutWidth',
+              'ctaLabel', 'ctaUrl', 'seoTitle', 'seoDescription',
+              'headline', 'location', 'announcementText',
+              'vcardEnabled', 'vcardEmail', 'vcardPhone',
+              'leadCaptureEnabled', 'leadCaptureTitle',
+              'visitorThemeSwitchEnabled', 'availabilityStatus', 'availabilityText',
+              'tipJarEnabled', 'tipJarLabel', 'tipJarUrl',
+              'isPublished', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 2: Atomic link addition (+1 linkCount)
+          (
+            isOwner(userId)
+            && existing().accountStatus == 'active'
+            && incoming().updatedAt == request.time
+            && incoming().linkCount == existing().linkCount + 1
+            && isValidId(incoming().lastModifiedLinkId)
+            && respectsPlanLimits(userId, incoming())
+            && !exists(/databases/$(database)/documents/profiles/$(userId)/links/$(incoming().lastModifiedLinkId))
+            && existsAfter(/databases/$(database)/documents/profiles/$(userId)/links/$(incoming().lastModifiedLinkId))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['linkCount', 'lastModifiedLinkId', 'updatedAt'])
+          )
+          ||
+          // Action 3: Atomic link deletion (-1 linkCount)
+          (
+            isOwner(userId)
+            && existing().accountStatus == 'active'
+            && incoming().updatedAt == request.time
+            && incoming().linkCount == existing().linkCount - 1
+            && isValidId(incoming().lastModifiedLinkId)
+            && exists(/databases/$(database)/documents/profiles/$(userId)/links/$(incoming().lastModifiedLinkId))
+            && !existsAfter(/databases/$(database)/documents/profiles/$(userId)/links/$(incoming().lastModifiedLinkId))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['linkCount', 'lastModifiedLinkId', 'updatedAt'])
+          )
+          ||
+          // Action 4: Public visitor increments view or click counter by +1
+          (
+            existing().isPublished == true
+            && existing().accountStatus == 'active'
+            && (
+              (incoming().totalViews == existing().totalViews + 1 && incoming().totalClicks == existing().totalClicks)
+              ||
+              (incoming().totalClicks == existing().totalClicks + 1 && incoming().totalViews == existing().totalViews)
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly(['totalViews', 'totalClicks'])
+          )
+          ||
+          // Action 5: Admin moderation (suspend/restore, unpublish, or official verified creator badge)
+          (
+            isAdmin()
+            && incoming().updatedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['accountStatus', 'isPublished', 'isVerifiedCreator', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isValidId(userId) && isAdmin();
+
+      // =======================================================================
+      // 4a. /profiles/{userId}/links/{linkId} - Subcollection Links & Rich Cards
+      // =======================================================================
+      match /links/{linkId} {
+        allow get: if isValidId(userId) && isValidId(linkId) && (
+          (existing().isProfilePublished == true && existing().enabled == true)
+          || isOwner(userId)
+          || isAdmin()
+        );
+
+        // Zero-get list query rule (Pillar 8 Cost-Optimization)
+        allow list: if (resource.data.isProfilePublished == true && resource.data.enabled == true)
+          || (isVerified() && resource.data.uid == request.auth.uid)
+          || isAdmin();
+
+        allow create: if isOwner(userId)
+          && isValidId(userId)
+          && isValidId(linkId)
+          && isValidBioLink(incoming())
+          && incoming().id == linkId
+          && incoming().uid == userId
+          && incoming().clicks == 0
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/profiles/$(userId))
+          && get(/databases/$(database)/documents/profiles/$(userId)).data.accountStatus == 'active'
+          && getAfter(/databases/$(database)/documents/profiles/$(userId)).data.lastModifiedLinkId == linkId
+          && getAfter(/databases/$(database)/documents/profiles/$(userId)).data.linkCount == get(/databases/$(database)/documents/profiles/$(userId)).data.linkCount + 1;
+
+        allow update: if isValidId(userId)
+          && isValidId(linkId)
+          && isValidBioLink(incoming())
+          && incoming().id == existing().id
+          && incoming().uid == existing().uid
+          && incoming().createdAt == existing().createdAt
+          && (
+            // Action 1: Owner edits link, rich card, schedule, inline media embed, pin, order, or publish mirror
+            (
+              isOwner(userId)
+              && incoming().clicks == existing().clicks
+              && incoming().updatedAt == request.time
+              && get(/databases/$(database)/documents/profiles/$(userId)).data.accountStatus == 'active'
+              && incoming().diff(existing()).affectedKeys().hasOnly([
+                'title', 'url', 'platform', 'isSocialIcon',
+                'subtitle', 'badgeText', 'thumbnailUrl', 'priceLabel', 'sectionTitle', 'isFeatured',
+                'embedType', 'startsAt', 'expiresAt', 'isPinned',
+                'enabled', 'isProfilePublished', 'order', 'updatedAt'
+              ])
+            )
+            ||
+            // Action 2: Visitor increments click counter by +1 on enabled published link
+            (
+              existing().isProfilePublished == true
+              && existing().enabled == true
+              && incoming().clicks == existing().clicks + 1
+              && incoming().diff(existing()).affectedKeys().hasOnly(['clicks'])
+            )
+            ||
+            // Action 3: Admin moderation sync
+            (
+              isAdmin()
+              && incoming().updatedAt == request.time
+              && incoming().diff(existing()).affectedKeys().hasOnly(['enabled', 'isProfilePublished', 'updatedAt'])
+            )
+          );
+
+        allow delete: if isValidId(userId)
+          && isValidId(linkId)
+          && (
+            (
+              isOwner(userId)
+              && getAfter(/databases/$(database)/documents/profiles/$(userId)).data.lastModifiedLinkId == linkId
+              && getAfter(/databases/$(database)/documents/profiles/$(userId)).data.linkCount == get(/databases/$(database)/documents/profiles/$(userId)).data.linkCount - 1
+            )
+            || isAdmin()
+          );
+      }
+    }
+
+    // =========================================================================
+    // 5. /leads/{leadId} - Visitor Inquiries & Lead Capture Inbox (PII Protected)
+    // =========================================================================
+    match /leads/{leadId} {
+      allow get: if isValidId(leadId) && (
+        (isVerified() && existing().profileUid == request.auth.uid)
+        || isAdmin()
+      );
+
+      allow list: if (isVerified() && resource.data.profileUid == request.auth.uid)
+        || isAdmin();
+
+      allow create: if isValidId(leadId)
+        && isValidLead(incoming())
+        && incoming().id == leadId
+        && incoming().status == 'new'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/profiles/$(incoming().profileUid))
+        && get(/databases/$(database)/documents/profiles/$(incoming().profileUid)).data.isPublished == true
+        && get(/databases/$(database)/documents/profiles/$(incoming().profileUid)).data.accountStatus == 'active'
+        && get(/databases/$(database)/documents/profiles/$(incoming().profileUid)).data.leadCaptureEnabled == true;
+
+      allow update: if isValidId(leadId)
+        && isValidLead(incoming())
+        && incoming().id == existing().id
+        && incoming().profileUid == existing().profileUid
+        && incoming().visitorName == existing().visitorName
+        && incoming().visitorEmail == existing().visitorEmail
+        && incoming().visitorPhone == existing().visitorPhone
+        && incoming().message == existing().message
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && (
+          (isVerified() && existing().profileUid == request.auth.uid)
+          || isAdmin()
+        );
+
+      allow delete: if isValidId(leadId) && (
+        (isVerified() && existing().profileUid == request.auth.uid)
+        || isAdmin()
+      );
+    }
+
+    // =========================================================================
+    // 6. /linkEvents/{eventId} - Privacy-Conscious Immutable Event Stream
+    // =========================================================================
+    match /linkEvents/{eventId} {
+      allow get: if isValidId(eventId) && (
+        (isVerified() && existing().profileUid == request.auth.uid)
+        || isAdmin()
+      );
+
+      allow list: if (isVerified() && resource.data.profileUid == request.auth.uid)
+        || isAdmin();
+
+      allow create: if isValidId(eventId)
+        && isValidLinkEvent(incoming())
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/profiles/$(incoming().profileUid))
+        && get(/databases/$(database)/documents/profiles/$(incoming().profileUid)).data.isPublished == true
+        && get(/databases/$(database)/documents/profiles/$(incoming().profileUid)).data.accountStatus == 'active';
+
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // 7. /analyticsDaily/{statId} - Daily Aggregated Metrics
+    // =========================================================================
+    match /analyticsDaily/{statId} {
+      allow get: if isValidId(statId) && (
+        (isVerified() && existing().profileUid == request.auth.uid)
+        || isAdmin()
+      );
+
+      allow list: if (isVerified() && resource.data.profileUid == request.auth.uid)
+        || isAdmin();
+
+      allow create: if isValidId(statId)
+        && isValidAnalyticsDaily(incoming())
+        && statId == incoming().profileUid + '_' + incoming().dateKey
+        && incoming().updatedAt == request.time
+        && (
+          (incoming().views == 1 && incoming().clicks == 0)
+          ||
+          (incoming().views == 0 && incoming().clicks == 1)
+        )
+        && !exists(/databases/$(database)/documents/linkEvents/$(incoming().lastEventId))
+        && existsAfter(/databases/$(database)/documents/linkEvents/$(incoming().lastEventId))
+        && exists(/databases/$(database)/documents/profiles/$(incoming().profileUid))
+        && get(/databases/$(database)/documents/profiles/$(incoming().profileUid)).data.isPublished == true;
+
+      allow update: if isValidId(statId)
+        && isValidAnalyticsDaily(incoming())
+        && incoming().profileUid == existing().profileUid
+        && incoming().dateKey == existing().dateKey
+        && incoming().updatedAt == request.time
+        && (
+          (incoming().views == existing().views + 1 && incoming().clicks == existing().clicks)
+          ||
+          (incoming().clicks == existing().clicks + 1 && incoming().views == existing().views)
+        )
+        && !exists(/databases/$(database)/documents/linkEvents/$(incoming().lastEventId))
+        && existsAfter(/databases/$(database)/documents/linkEvents/$(incoming().lastEventId))
+        && incoming().diff(existing()).affectedKeys().hasOnly(['views', 'clicks', 'lastEventId', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // 8. /subscriptions/{userId} - Plan & Billing Isolation
+    // =========================================================================
+    match /subscriptions/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isValidId(userId)
+        && isValidSubscription(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isOwner(userId)
+            && incoming().plan == 'free'
+            && incoming().status == 'active'
+            && incoming().provider == 'system'
+          )
+          || isAdmin()
+        );
+
+      allow update: if isValidId(userId)
+        && isValidSubscription(incoming())
+        && isAdmin()
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['plan', 'status', 'provider', 'updatedAt']);
+
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 9. /supportTickets/{ticketId} - Help & Support Inquiries
+    // =========================================================================
+    match /supportTickets/{ticketId} {
+      allow get: if isValidId(ticketId) && (isOwner(existing().uid) || isAdmin());
+
+      allow list: if (isVerified() && resource.data.uid == request.auth.uid)
+        || isAdmin();
+
+      allow create: if isVerified()
+        && isValidId(ticketId)
+        && isValidSupportTicket(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().email == request.auth.token.email
+        && incoming().status == 'open'
+        && incoming().adminReply == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      // Terminal State Locking: only admins can modify tickets, including reopening resolved states
+      allow update: if isValidId(ticketId)
+        && isValidSupportTicket(incoming())
+        && isAdmin()
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().category == existing().category
+        && incoming().subject == existing().subject
+        && incoming().message == existing().message
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminReply', 'updatedAt']);
+
+      allow delete: if isValidId(ticketId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 10. /reports/{reportId} - Public Profile Abuse Reports
+    // =========================================================================
+    match /reports/{reportId} {
+      allow get: if isValidId(reportId) && isAdmin();
+      allow list: if isAdmin();
+
+      allow create: if isValidId(reportId)
+        && isValidReport(incoming())
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/profiles/$(incoming().reportedUid));
+
+      allow update: if isValidId(reportId)
+        && isValidReport(incoming())
+        && isAdmin()
+        && incoming().reportedUid == existing().reportedUid
+        && incoming().reportedUsername == existing().reportedUsername
+        && incoming().reason == existing().reason
+        && incoming().details == existing().details
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if isValidId(reportId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 11. /platformSettings/{docId} - Admin-Editable Platform Settings
+    // =========================================================================
+    match /platformSettings/{docId} {
+      allow get: if isValidId(docId);
+      allow list: if isAdmin();
+
+      allow create: if isAdmin()
+        && isValidId(docId)
+        && isValidPlatformSettings(incoming())
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(docId)
+        && isValidPlatformSettings(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'heroHeadline', 'heroSubheadline', 'freeMaxLinks', 'premiumMaxLinks',
+          'premiumPriceMonthly', 'disabledThemes', 'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // =========================================================================
+    // 12. /faqs/{faqId} - Admin-Editable Public FAQs
+    // =========================================================================
+    match /faqs/{faqId} {
+      allow get: if isValidId(faqId) && (existing().isPublished == true || isAdmin());
+      allow list: if resource.data.isPublished == true || isAdmin();
+
+      allow create: if isAdmin()
+        && isValidId(faqId)
+        && isValidFaqItem(incoming())
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(faqId)
+        && isValidFaqItem(incoming())
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'question', 'answer', 'order', 'isPublished', 'updatedAt'
+        ]);
+
+      allow delete: if isValidId(faqId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 13. /paymentMethods/{methodId} - Admin-Configured Manual Payment Methods
+    // =========================================================================
+    match /paymentMethods/{methodId} {
+      allow get: if isValidId(methodId) && ((isVerified() && existing().isActive == true) || isAdmin());
+      allow list: if (isVerified() && resource.data.isActive == true) || isAdmin();
+
+      allow create: if isAdmin()
+        && isValidId(methodId)
+        && isValidPaymentMethod(incoming())
+        && incoming().id == methodId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(methodId)
+        && isValidPaymentMethod(incoming())
+        && isAdmin()
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'providerName', 'accountTitle', 'accountNumber', 'instructions', 'isActive', 'order', 'updatedAt'
+        ]);
+
+      allow delete: if isValidId(methodId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 14. /paymentRequests/{requestId} - Manual Payment Verification Queue
+    // =========================================================================
+    match /paymentRequests/{requestId} {
+      allow get: if isValidId(requestId) && (isOwner(existing().uid) || isAdmin());
+
+      allow list: if (isVerified() && resource.data.uid == request.auth.uid)
+        || isAdmin();
+
+      allow create: if isVerified()
+        && isValidId(requestId)
+        && isValidPaymentRequest(incoming())
+        && incoming().id == requestId
+        && incoming().uid == request.auth.uid
+        && incoming().userEmail == request.auth.token.email
+        && incoming().status == 'pending'
+        && incoming().adminNote == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && exists(/databases/$(database)/documents/paymentMethods/$(incoming().methodId))
+        && get(/databases/$(database)/documents/paymentMethods/$(incoming().methodId)).data.isActive == true;
+
+      // Terminal State & RBAC Lock: Only verified admins can approve/reject; user submission fields are immutable
+      allow update: if isValidId(requestId)
+        && isValidPaymentRequest(incoming())
+        && isAdmin()
+        && incoming().id == existing().id
+        && incoming().uid == existing().uid
+        && incoming().userEmail == existing().userEmail
+        && incoming().username == existing().username
+        && incoming().methodId == existing().methodId
+        && incoming().methodName == existing().methodName
+        && incoming().amountUsd == existing().amountUsd
+        && incoming().senderName == existing().senderName
+        && incoming().senderAccount == existing().senderAccount
+        && incoming().transactionId == existing().transactionId
+        && incoming().receiptDataUrl == existing().receiptDataUrl
+        && incoming().userNote == existing().userNote
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt']);
+
+      allow delete: if isValidId(requestId) && isAdmin();
+    }
+  }
+}
